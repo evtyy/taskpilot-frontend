@@ -15,6 +15,7 @@ A full-stack task management (Kanban-style) app built to practice frontend↔bac
 - Kanban board with three columns, search by title, filter by priority
 - Live backend connection indicator (polls `GET /health`)
 - Auto-seeded sample data on first run so the board isn't empty
+- Chatbot (bottom-right floating button): describe a task in plain English and it gets created via LLM function calling (Groq, Llama 3.3 70B)
 
 ## Project Structure
 
@@ -26,7 +27,7 @@ taskboard/
 │   │   ├── api/client.ts           # Axios instance + all backend calls
 │   │   ├── types/task.ts            # Task type definitions
 │   │   ├── hooks/                    # useTasks, useBackendStatus
-│   │   └── components/                # UI components
+│   │   └── components/                # UI components (incl. ChatPanel.tsx)
 │   ├── Dockerfile
 │   └── .env.example
 │
@@ -40,14 +41,20 @@ taskboard/
 
 This spins up MySQL, the backend, and the frontend together, wired to talk to each other.
 
+The chatbot needs a Groq API key (free tier at [console.groq.com](https://console.groq.com)). Create a `.env` file next to `docker-compose.yml`:
+```bash
+echo "GROQ_API_KEY=gsk_..." > .env
+```
+Docker Compose loads this automatically and passes it into the backend container (`docker-compose.yml`'s `backend.environment`). Without it, everything else works fine but `/chat` returns a 500.
+
 ```bash
 cd taskboard
 docker compose up --build
 ```
 
-- Frontend: `http://localhost:3000`
+- Frontend: `http://localhost:3001`
 - Backend docs (Swagger): `http://localhost:8000/docs`
-- MySQL (e.g. for connecting with PyCharm/TablePlus): `localhost:3306`, user `root`, password `123456`
+- MySQL (e.g. for connecting with PyCharm/TablePlus): `localhost:3307`, user `root`, password `123456`
 
 To stop and clean up:
 ```bash
@@ -84,7 +91,15 @@ ASYNC_DATABASE_URL = os.environ.get(
     "mysql+aiomysql://root:123456@localhost:3306/task_board?charset=utf8",
 )
 ```
-Adjust the fallback to match your local MySQL credentials, then run:
+Adjust the fallback to match your local MySQL credentials.
+
+The chatbot also reads `GROQ_API_KEY` from the environment (free tier at [console.groq.com](https://console.groq.com)):
+```bash
+export GROQ_API_KEY=gsk_...
+```
+Everything else works without it — you'll just get a 500 from `/chat`.
+
+Then run:
 ```bash
 uvicorn main:app --reload --port 8000
 ```
@@ -109,6 +124,7 @@ GET    /tasks             → Task[]
 POST   /tasks             → Task            body: TaskCreate
 PUT    /tasks/{id}        → Task            body: TaskUpdate (all fields optional)
 DELETE /tasks/{id}        → 204
+POST   /chat               → ChatResponse   body: { message: string }
 ```
 
 ```ts
@@ -121,14 +137,21 @@ interface Task {
   due_date?: string | null;
   create_time: string;
 }
+
+interface ChatResponse {
+  reply: string;
+  task?: Task;   // present only if the message resulted in a created task
+}
 ```
+
+`/chat` sends the message to Groq (Llama 3.3 70B) with a `create_task` function tool. The model only decides whether/how to call it — the backend is what actually writes to the database, so the LLM never touches persistence directly. Requires `GROQ_API_KEY` to be set on the backend; returns 500 if it's missing.
 
 ## CORS
 
 ```python
 allow_origins=[
     "http://localhost:5173",  # npm run dev
-    "http://localhost:3000",  # docker compose up
+    "http://localhost:3001",  # docker compose up
 ]
 ```
 Add any other origin here before deploying elsewhere. Avoid `allow_origins=["*"]`.
@@ -138,13 +161,11 @@ Add any other origin here before deploying elsewhere. Avoid `allow_origins=["*"]
 | Symptom | Likely cause |
 |---|---|
 | Frontend shows "backend unreachable" but `localhost:8000/health` works fine in the browser | `VITE_API_URL` was set to `http://backend:8000` — that hostname only resolves inside the Docker network. Use `http://localhost:8000` for anything the browser calls directly, then rebuild the frontend |
-| `port is already allocated` / `address already in use` | Something else (often a local MySQL install for port 3306, or a leftover container for 3000) is already using that port. Find it with `lsof -i :<port>`, then stop it or remap the port in `docker-compose.yml` |
+| `port is already allocated` / `address already in use` | Something else (often a local MySQL install for port 3306, or a leftover container for 3001) is already using that port. Find it with `lsof -i :<port>`, then stop it or remap the port in `docker-compose.yml` |
+| Chat button does nothing / `/chat` returns 500 `"GROQ_API_KEY is not set on the server"` | The backend container/process doesn't have `GROQ_API_KEY` in its environment. For Docker Compose, check it's in the root `.env` file (not just exported in your shell — Compose only auto-loads a `.env` file) and that `docker-compose.yml`'s `backend.environment` references it |
 | Backend container stuck `Restarting` in `docker compose ps` | Check `docker compose logs backend` for the actual error — common causes: missing `cryptography` package (needed for MySQL 8's default auth), or a bad `DATABASE_URL` |
 | `RuntimeError: 'cryptography' package is required...` | Add `cryptography` to `requirements.txt` and rebuild |
 | `ResponseValidationError` on `/tasks` | A field in the SQLAlchemy model doesn't match the Pydantic response model's fields, or the MySQL table's columns are out of date after a model change — drop the table and let `create_all` rebuild it |
 | Board loads but no tasks appear, no errors in the console | The response model is likely missing fields (e.g. `status`) that the frontend needs to sort tasks into columns — check that `Task` includes all fields the frontend expects |
 | `no configuration file provided: not found` | You're not in the directory containing `docker-compose.yml`, or it hasn't been moved to the project root yet |
 
-## Resume-ready summary
-
-Full-stack task management app with a React/TypeScript frontend and an async FastAPI + SQLAlchemy + MySQL backend, communicating over a documented REST API. Deployed as three orchestrated Docker containers (frontend, backend, database) via Docker Compose. Implements optimistic UI updates with rollback, inline editing, live backend health polling, and a clean create/update/read schema separation on the API layer.

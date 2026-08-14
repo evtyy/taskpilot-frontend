@@ -57,6 +57,19 @@ export async function deleteTask(id: number): Promise<void> {
   await apiClient.delete(`/tasks/${id}`);
 }
 
+// --- Chat -----------------------------------------------------------
+// sends a message to the backend, which hits groq (function calling) to
+// either create a task or just reply back
+export interface ChatResponse {
+  reply: string;
+  task: Task | null;
+}
+
+export async function sendChatMessage(message: string): Promise<ChatResponse> {
+  const { data } = await apiClient.post<ChatResponse>("/chat", { message });
+  return data;
+}
+
 // Normalizes axios/network errors into a readable message for the UI.
 export function toErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {

@@ -5,6 +5,8 @@ import {TaskColumn} from "./components/TaskColumn";
 import {TaskForm} from "./components/TaskForm";
 import {useBackendStatus} from "./hooks/useBackendStatus";
 import {useTasks} from "./hooks/useTasks";
+import {ChatPanel} from "./components/ChatPanel";
+
 import type {TaskPriority, TaskStatus} from "./types/task";
 import "./App.css";
 
@@ -77,6 +79,8 @@ function App() {
                     />
                 ))}
             </main>
+
+            <ChatPanel onTaskCreated={refresh} />
         </div>
     );
 }

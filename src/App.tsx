@@ -23,6 +23,7 @@ function App() {
 
     const [query, setQuery] = useState("");
     const [priority, setPriority] = useState<TaskPriority | "all">("all");
+    const [chatOpen, setChatOpen] = useState(false);
 
     const filtered = useMemo(() => {
         return tasks.filter((t) => {
@@ -33,54 +34,62 @@ function App() {
     }, [tasks, query, priority]);
 
     return (
-        <div className="app">
-            <header className="app-header">
-                <div className="app-header__title">
-                    <h1>Task Board</h1>
-                    <span className="app-header__subtitle">React + FastAPI demo</span>
-                </div>
-                <div className="app-header__right">
-                    <ConnectionStatus status={backendStatus}/>
-                    <button className="btn btn--ghost" onClick={refresh} disabled={loading}>
-                        {loading ? "refreshing…" : "refresh"}
-                    </button>
-                </div>
-            </header>
+        <div className="layout">
+            <div className="app">
+                <header className="app-header">
+                    <div className="app-header__title">
+                        <h1>Task Board</h1>
+                        <span className="app-header__subtitle">React + FastAPI demo</span>
+                    </div>
+                    <div className="app-header__right">
+                        <ConnectionStatus status={backendStatus}/>
+                        <button className="btn btn--ghost" onClick={refresh} disabled={loading}>
+                            {loading ? "refreshing…" : "refresh"}
+                        </button>
+                        <button
+                            className={`btn ${chatOpen ? "btn--accent" : "btn--ghost"}`}
+                            onClick={() => setChatOpen((o) => !o)}
+                        >
+                            ✨ TaskPilot
+                        </button>
+                    </div>
+                </header>
 
-            {error && (
-                <div className="banner banner--error">
-                    {error}
-                    <button className="btn btn--link" onClick={refresh}>
-                        retry
-                    </button>
-                </div>
-            )}
+                {error && (
+                    <div className="banner banner--error">
+                        {error}
+                        <button className="btn btn--link" onClick={refresh}>
+                            retry
+                        </button>
+                    </div>
+                )}
 
-            <div className="toolbar">
-                <FilterBar
-                    query={query}
-                    onQueryChange={setQuery}
-                    priority={priority}
-                    onPriorityChange={setPriority}
-                />
-                <TaskForm onSubmit={addTask}/>
+                <div className="toolbar">
+                    <FilterBar
+                        query={query}
+                        onQueryChange={setQuery}
+                        priority={priority}
+                        onPriorityChange={setPriority}
+                    />
+                    <TaskForm onSubmit={addTask}/>
+                </div>
+
+                <main className="board">
+                    {COLUMNS.map((col) => (
+                        <TaskColumn
+                            key={col.status}
+                            status={col.status}
+                            label={col.label}
+                            tasks={filtered.filter((t) => t.status === col.status)}
+                            onStatusChange={(id, status) => editTask(id, {status})}
+                            onEdit={editTask}
+                            onDelete={removeTask}
+                        />
+                    ))}
+                </main>
             </div>
 
-            <main className="board">
-                {COLUMNS.map((col) => (
-                    <TaskColumn
-                        key={col.status}
-                        status={col.status}
-                        label={col.label}
-                        tasks={filtered.filter((t) => t.status === col.status)}
-                        onStatusChange={(id, status) => editTask(id, {status})}
-                        onEdit={editTask}
-                        onDelete={removeTask}
-                    />
-                ))}
-            </main>
-
-            <ChatPanel onTaskCreated={refresh} />
+            <ChatPanel open={chatOpen} onTaskCreated={refresh} />
         </div>
     );
 }

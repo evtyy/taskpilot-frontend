@@ -6,14 +6,15 @@ import {TaskForm} from "./components/TaskForm";
 import {useBackendStatus} from "./hooks/useBackendStatus";
 import {useTasks} from "./hooks/useTasks";
 import {ChatPanel} from "./components/ChatPanel";
+import {RefreshIcon} from "./components/icons";
 
 import type {TaskPriority, TaskStatus} from "./types/task";
 import "./App.css";
 
 const COLUMNS: { status: TaskStatus; label: string }[] = [
-    {status: "todo", label: "TODO"},
-    {status: "in_progress", label: "IN PROGRESS"},
-    {status: "done", label: "DONE"},
+    {status: "todo", label: "Todo"},
+    {status: "in_progress", label: "In Progress"},
+    {status: "done", label: "Done"},
 ];
 
 function App() {
@@ -23,7 +24,7 @@ function App() {
 
     const [query, setQuery] = useState("");
     const [priority, setPriority] = useState<TaskPriority | "all">("all");
-    const [chatOpen, setChatOpen] = useState(false);
+    const [chatCollapsed, setChatCollapsed] = useState(true);
 
     const filtered = useMemo(() => {
         return tasks.filter((t) => {
@@ -38,19 +39,14 @@ function App() {
             <div className="app">
                 <header className="app-header">
                     <div className="app-header__title">
-                        <h1>Task Board</h1>
+                        <h1>TaskPilot</h1>
                         <span className="app-header__subtitle">React + FastAPI demo</span>
                     </div>
                     <div className="app-header__right">
                         <ConnectionStatus status={backendStatus}/>
-                        <button className="btn btn--ghost" onClick={refresh} disabled={loading}>
-                            {loading ? "refreshing…" : "refresh"}
-                        </button>
-                        <button
-                            className={`btn ${chatOpen ? "btn--accent" : "btn--ghost"}`}
-                            onClick={() => setChatOpen((o) => !o)}
-                        >
-                            ✨ TaskPilot
+                        <button className="btn btn--pill-ghost" onClick={refresh} disabled={loading}>
+                            <RefreshIcon className="btn__icon btn__icon--sm"/>
+                            {loading ? "Refreshing…" : "Refresh"}
                         </button>
                     </div>
                 </header>
@@ -84,12 +80,19 @@ function App() {
                             onStatusChange={(id, status) => editTask(id, {status})}
                             onEdit={editTask}
                             onDelete={removeTask}
+                            onQuickAdd={(status) =>
+                                addTask({title: "Untitled task", status, priority: "medium"})
+                            }
                         />
                     ))}
                 </main>
             </div>
 
-            <ChatPanel open={chatOpen} onTaskCreated={refresh} />
+            <ChatPanel
+                collapsed={chatCollapsed}
+                onToggleCollapsed={() => setChatCollapsed((c) => !c)}
+                onTaskCreated={refresh}
+            />
         </div>
     );
 }

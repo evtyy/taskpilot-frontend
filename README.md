@@ -2,9 +2,9 @@
 
 A Kanban task board with account-based auth and an AI assistant that turns plain-English messages into tasks. Built to practice full-stack integration end to end — React/TypeScript frontend, FastAPI backend, MySQL — containerized and deployed to AWS.
 
-**Backend repo:** [taskpilot-api](https://github.com/evtyy/taskpilot-api) · **Live demo:** _add your deployed URL here_
+**Backend repo:** [taskpilot-api](https://github.com/evtyy/taskpilot-api) · **Demo:** 
 
-<!-- Add a screenshot or short GIF of the board here — e.g. ![TaskPilot board](docs/screenshot.png) -->
+![TaskPilot board](docs/screenshot.png)
 
 ## Features
 
@@ -17,6 +17,13 @@ A Kanban task board with account-based auth and an AI assistant that turns plain
 ## Tech Stack
 
 React 19 · TypeScript · Vite · Axios · Nginx · Docker
+
+## Architecture
+ 
+- **Deployment:** this app runs as two containers (this frontend + the [backend](https://github.com/evtyy/taskpilot-api)) on a single AWS EC2 instance, pulling pre-built images from Amazon ECR. `VITE_API_URL` is baked into the image at **build time** — the browser calls the backend directly, so this has to be the backend's real deployed address, not an internal Docker hostname.
+- **Database:** the backend connects to MySQL via **Amazon RDS**, with inbound access restricted at the network level to only the EC2 instance's security group — not exposed to the public internet.
+- **Credentials:** the EC2 instance pulls from ECR using an **IAM role** attached directly to it, rather than long-lived access keys stored on the box.
+- **CI/CD:** this repo and the backend repo each have their own GitHub Actions workflow. Pushing to `main` builds a Docker image, pushes it to ECR, and redeploys it on the EC2 instance over SSH — independently per service.
 
 ## Quick Start
 
@@ -31,6 +38,14 @@ npm run dev
 ```
 
 Runs at `http://localhost:5173`. Note: `VITE_API_URL` is baked in at build/start time — after changing `.env`, restart `npm run dev` rather than just saving the file.
+
+## Running with Docker
+ 
+```bash
+docker build --build-arg VITE_API_URL=http://localhost:8000 -t taskpilot-frontend .
+docker run -p 3000:80 taskpilot-frontend
+```
+Same build-time caveat applies — `VITE_API_URL` must point to wherever the backend will actually be reachable from the browser when the container runs, since it can't be changed afterward without rebuilding.
 
 ## Project Structure
 

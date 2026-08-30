@@ -116,6 +116,25 @@ export function SparkleIcon({className}: IconProps) {
     );
 }
 
+export function LogoutIcon({className}: IconProps) {
+    return (
+        <svg
+            className={className}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            <path d="M15 4.5H7.5A1.5 1.5 0 0 0 6 6v12a1.5 1.5 0 0 0 1.5 1.5H15" />
+            <path d="M20 12H10" />
+            <path d="m16 8 4 4-4 4" />
+        </svg>
+    );
+}
+
 export function ArrowUpIcon({className}: IconProps) {
     return (
         <svg

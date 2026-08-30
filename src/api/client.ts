@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { Task, TaskCreate, TaskUpdate } from "../types/task";
+import type { AuthCredentials, AuthResponse, User } from "../types/auth";
 
 // Base URL is injected at build/runtime via Vite env var, so the same
 // image can point at different backends (local, staging, docker network)
@@ -14,6 +15,55 @@ export const apiClient = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+// --- Auth token plumbing -------------------------------------------------
+// Token lives in localStorage so it survives a page refresh. The request
+// interceptor attaches it to every call; the response interceptor clears it
+// and broadcasts an event (picked up by useAuth) when the backend says it's
+// no longer valid, e.g. it expired.
+const TOKEN_STORAGE_KEY = "taskpilot_token";
+
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+export function setStoredToken(token: string | null): void {
+  if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  else localStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+apiClient.interceptors.request.use((config) => {
+  const token = getStoredToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (err) => {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      setStoredToken(null);
+      window.dispatchEvent(new Event("taskpilot:unauthorized"));
+    }
+    return Promise.reject(err);
+  }
+);
+
+// --- Auth -----------------------------------------------------------
+export async function login(credentials: AuthCredentials): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>("/auth/login", credentials);
+  return data;
+}
+
+export async function register(credentials: AuthCredentials): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>("/auth/register", credentials);
+  return data;
+}
+
+export async function fetchCurrentUser(): Promise<User> {
+  const { data } = await apiClient.get<User>("/auth/me");
+  return data;
+}
 
 // --- Health check -----------------------------------------------------
 // Used by the connection indicator in the header. Expects the FastAPI
